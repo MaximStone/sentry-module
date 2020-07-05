@@ -38,22 +38,52 @@ Versions of NuxtJS before v2.4.0 are **not** supported by this package.
 
 ## Usage
 
-Enter your DSN in the NuxtJS config file. Additional config settings can be found [here](https://docs.sentry.io/clients/javascript/config/).
+Enter your DSN in the NuxtJS config file. Additional config settings can be found [here](https://docs.sentry.io/error-reporting/configuration/?platform=browser).
 
 ### Usage in Vue component
 
 In a Vue component, `Sentry` is available as `this.$sentry`, so we can call functions like
 
-```
+``` js
 this.$sentry.captureException(new Error('example'))
 ```
 
 where `this` is a Vue instance.
 
+### Usage in `asyncData`
+
+While using Nuxt's `asyncData` method, there's `$sentry` object in the `context`:
+
+``` js
+async asyncData ({ params, $sentry }) {
+  try {
+    let { data } = await axios.get(`https://my-api/posts/${params.id}`)
+    return { title: data.title }
+  } catch (error) {
+    $sentry.captureException(error)
+  }
+}
+```
+
+### Usage in other lifecycle areas
+
+For the other special Nuxt lifecycle areas like `plugins`, `middleware`, and `nuxtServerInit`, the `$sentry` object is also accessible through the `context` object like so:
+
+```js
+async nuxtServerInit({ commit }, { $sentry }) {
+  try {
+    let { data } = await axios.get(`https://my-api/timestamp`)
+    commit('setTimeStamp', data)
+  } catch (error) {
+    $sentry.captureException(error)
+  }
+}
+```
+
 ## Options
 
 Options can be passed using either environment variables or `sentry` section in `nuxt.config.js`.
-Normally setting required DSN information would be enough.
+Normally, setting required DSN information would be enough.
 
 ### dsn
 - Type: `String`
@@ -76,11 +106,35 @@ Normally setting required DSN information would be enough.
 ### initialize
 - Type: `Boolean`
   - Default: `process.env.SENTRY_INITIALIZE || true`
+  - Can be used to add the `$sentry` object without initializing it, which will result in not reporting errors to Sentry when they happen but not crashing on calling the Sentry APIs.
+
+### logMockCalls
+- Type: `Boolean`
+  - Default: `true`
+  - Whether to log calls to the mocked `$sentry` client-side object in the console
+  - Only applies when mocked instance is used (when `disabled = true` or `disableClientSide = true`)
 
 ### publishRelease
 - Type: `Boolean`
   - Default: `process.env.SENTRY_PUBLISH_RELEASE || false`
   - See https://docs.sentry.io/workflow/releases for more information
+
+### sourceMapStyle
+- Type: `String`
+  - Default: `source-map`
+  - Only has effect when `publishRelease = true`
+  - The type of source maps generated when publishing release to Sentry. See https://webpack.js.org/configuration/devtool for a list of available options
+  - **Note**: Consider using `hidden-source-map` instead. For most people, that should be a better option but due to it being a breaking change, it won't be set as the default until next major release
+
+### attachCommits
+- Type: `Boolean`
+  - Default: `process.env.SENTRY_AUTO_ATTACH_COMMITS || false`
+  - Only has effect when `publishRelease = true`
+
+### repo
+- Type: `String`
+  - Default: `process.env.SENTRY_RELEASE_REPO || false`
+  - Only has effect when `publishRelease = true && attachCommits = true`
 
 ### disableServerRelease
 - Type: `Boolean`
@@ -95,7 +149,7 @@ Normally setting required DSN information would be enough.
 ### clientIntegrations
 - Type: `Dictionary`
   - Default:
-  ```
+  ``` js
    {
       Dedupe: {},
       ExtraErrorData: {},
@@ -109,7 +163,7 @@ Normally setting required DSN information would be enough.
 ### serverIntegrations
 - Type: `Dictionary`
   - Default:
-  ```
+  ``` js
     {
       Dedupe: {},
       ExtraErrorData: {},
@@ -136,6 +190,11 @@ Normally setting required DSN information would be enough.
   - Default: `{
   }`
   - If specified, values will override config values for client sentry plugin
+
+### webpackConfig
+- Type: `Object`
+  - Default: Refer to `module.js` since defaults include various options that also change dynamically based on other options.
+  - Options passed to `@sentry/webpack-plugin`. See documentation at https://github.com/getsentry/sentry-webpack-plugin/blob/master/README.md
 
 ## Submitting releases to Sentry
 Support for the [sentry-webpack-plugin](https://github.com/getsentry/sentry-webpack-plugin) was introduced [#a6cd8d3](https://github.com/nuxt-community/sentry-module/commit/a6cd8d3b983b4c6659e985736b19dc771fe7c9ea). This can be used to send releases to Sentry. Use the publishRelease  option to enable this feature.
